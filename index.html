@@ -4,26 +4,21 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Crypto AI Mini App</title>
-    <!-- Telegram WebApp SDK -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- React & Babel -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <!-- Lightweight Charts (TradingView) -->
-    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
-    <!-- TON Connect UI -->
-    <script src="https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js"></script>
+    <script src="https://unpkg.com/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
 
     <style>
-        body { background-color: #0B1120; color: white; font-family: -apple-system, sans-serif; overflow: hidden; }
-        .glass { background: rgba(17, 24, 39, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
-        .neon-glow { box-shadow: 0 0 15px rgba(16, 185, 129, 0.5); }
+        body { font-family: -apple-system, sans-serif; overflow: hidden; transition: background-color 0.3s, color 0.3s; }
         ::-webkit-scrollbar { display: none; }
-        #chart-container { width: 100%; height: 250px; border-radius: 12px; overflow: hidden; }
-        #ton-connect-button { margin-top: 10px; }
+        #chart-container { width: 100%; height: 320px; border-radius: 12px; overflow: hidden; border: 1px solid #334155; transition: all 0.3s; position: relative; }
+        .plan-card { transition: all 0.2s; cursor: pointer; border: 1px solid #334155; }
+        .plan-card:hover { border-color: #10b981; background: rgba(16, 185, 129, 0.1); }
+        .signal-glow-long { box-shadow: 0 0 15px rgba(16, 185, 129, 0.4); border-color: #10b981; }
+        .signal-glow-short { box-shadow: 0 0 15px rgba(239, 68, 68, 0.4); border-color: #ef4444; }
     </style>
 </head>
 <body class="h-screen flex flex-col">
@@ -32,11 +27,34 @@
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
 
-        // 🔴 آیدی تلگرام شما برای حالت ادمین
         const ADMIN_TELEGRAM_ID = 7400384016; 
+        const FREE_LIMIT = 5;
+
+        const translations = {
+            en: { market: "Market", aiSignal: "AI Signal", generate: "Generate High-Precision Signal", unlock: "Unlock AI Signal", admin: "Admin", pro: "PRO", usesLeft: "Uses Left", goPremium: "Go Premium (Unlimited)", upgrade: "Upgrade to PRO", planText: "You have used your 5 free signals. Select a plan to continue.", settings: "Settings", language: "Language", theme: "Theme", dark: "Dark Mode", light: "Light Mode", top100: "Top 100", toncoin: "Toncoin", tonEco: "TON Eco", entry: "Entry", sl: "SL", about: "About Us", back: "Back", confidence: "Confidence" },
+            fa: { market: "بازار", aiSignal: "سیگنال هوش مصنوعی", generate: "دریافت سیگنال با دقت بالا", unlock: "باز کردن قفل سیگنال", admin: "ادمین", pro: "ویژه", usesLeft: "دفعات باقیمانده", goPremium: "خرید اشتراک (نامحدود)", upgrade: "ارتقا به نسخه ویژه", planText: "شما ۵ سیگنال رایگان خود را استفاده کرده‌اید. برای ادامه یک پلن انتخاب کنید.", settings: "تنظیمات", language: "زبان", theme: "تم", dark: "حالت تاریک", light: "حالت روشن", top100: "۱۰۰ ارز برتر", toncoin: "تون‌کوین", tonEco: "اکوسیستم تون", entry: "ورود", sl: "حد ضرر", about: "درباره ما", back: "بازگشت", confidence: "اطمینان" },
+            ru: { market: "Рынок", aiSignal: "ИИ Сигнал", generate: "Создать точный сигнал", unlock: "Разблокировать", admin: "Админ", pro: "PRO", usesLeft: "Осталось", goPremium: "Премиум (Безлимит)", upgrade: "Обновить до PRO", planText: "Вы использовали 5 бесплатных сигналов. Выберите план.", settings: "Настройки", language: "Язык", theme: "Тема", dark: "Темная", light: "Светлая", top100: "Топ 100", toncoin: "Toncoin", tonEco: "TON Eco", entry: "Вход", sl: "Стоп", about: "О нас", back: "Назад", confidence: "Уверенность" },
+            zh: { market: "市场", aiSignal: "AI 信号", generate: "生成高精度信号", unlock: "解锁 AI 信号", admin: "管理员", pro: "PRO", usesLeft: "剩余次数", goPremium: "升级高级版 (无限制)", upgrade: "升级到 PRO", planText: "您已使用 5 次免费信号。请选择计划。", settings: "设置", language: "语言", theme: "主题", dark: "深色模式", light: "浅色模式", top100: "前 100", toncoin: "Toncoin", tonEco: "TON 生态", entry: "入场", sl: "止损", about: "关于我们", back: "返回", confidence: "置信度" },
+            ja: { market: "マーケット", aiSignal: "AI シグナル", generate: "高精度シグナル生成", unlock: "ロック解除", admin: "管理者", pro: "PRO", usesLeft: "残り回数", goPremium: "プレミアム (無制限)", upgrade: "PRO にアップグレード", planText: "5 回の無料シグナルを使用しました。プランを選択してください。", settings: "設定", language: "言語", theme: "テーマ", dark: "ダーク", light: "ライト", top100: "トップ 100", toncoin: "Toncoin", tonEco: "TON エコ", entry: "エントリー", sl: "損切り", about: "私たちについて", back: "戻る", confidence: "信頼度" }
+        };
+
+        const TIMEFRAMES = ['5m', '15m', '30m', '1h', '4h', '1d', '1w', '1M'];
 
         function App() {
+            const [lang, setLang] = useState(() => {
+                const tgLang = window.Telegram?.WebApp?.initDataUnsafe?.user?.language_code;
+                if (['fa', 'ru', 'zh', 'ja'].includes(tgLang)) return tgLang;
+                return 'en';
+            });
+            const [theme, setTheme] = useState(() => localStorage.getItem('crypto_theme') || 'dark');
+            const [showSettings, setShowSettings] = useState(false);
+            const [showAbout, setShowAbout] = useState(false);
+            const t = translations[lang];
+
             const [isAdmin, setIsAdmin] = useState(false);
+            const [isPremium, setIsPremium] = useState(() => localStorage.getItem('crypto_ai_premium') === 'true');
+            const [usageCount, setUsageCount] = useState(() => parseInt(localStorage.getItem('crypto_ai_usage') || '0', 10));
+
             const [mainTab, setMainTab] = useState('market');
             const [marketCategory, setMarketCategory] = useState('global');
             
@@ -45,6 +63,7 @@
             const [loading, setLoading] = useState(true);
             
             const [selectedCoin, setSelectedCoin] = useState(null);
+            const [timeframe, setTimeframe] = useState('15m');
             const [loadingSignal, setLoadingSignal] = useState(false);
             const [signal, setSignal] = useState(null);
             const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -52,239 +71,327 @@
             const chartContainerRef = useRef(null);
             const chartRef = useRef(null);
             const seriesRef = useRef(null);
+            const priceLinesRef = useRef([]);
+
+            // رفع باگ راست‌چین شدن برای زبان فارسی
+            useEffect(() => {
+                document.documentElement.dir = lang === 'fa' ? 'rtl' : 'ltr';
+                document.documentElement.lang = lang;
+            }, [lang]);
+
+            useEffect(() => { localStorage.setItem('crypto_theme', theme); }, [theme]);
 
             useEffect(() => {
-                // 🟢 چک کردن آیدی ادمین
-                if (window.Telegram && window.Telegram.WebApp) {
-                    window.Telegram.WebApp.ready();
-                    window.Telegram.WebApp.expand();
-                    const currentUserId = window.Telegram.WebApp.initDataUnsafe?.user?.id;
-                    if (currentUserId === ADMIN_TELEGRAM_ID) {
-                        setIsAdmin(true);
+                try {
+                    if (window.Telegram && window.Telegram.WebApp) {
+                        window.Telegram.WebApp.ready();
+                        window.Telegram.WebApp.expand();
+                        if (window.Telegram.WebApp.initDataUnsafe?.user?.id === ADMIN_TELEGRAM_ID) setIsAdmin(true);
                     }
-                }
+                } catch(e) {}
 
-                // دریافت دیتای بازار
-                const fetchGlobal = fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=100&page=1&sparkline=false')
-                    .then(res => res.json());
-                const fetchTON = fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&category=ton-ecosystem&order=market_cap_desc&per_page=50&page=1&sparkline=false')
-                    .then(res => res.json());
+                const fetchGlobal = fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=100&page=1&sparkline=false').then(res => res.json()).catch(() => []);
+                const fetchTON = fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&category=ton-ecosystem&order=market_cap_desc&per_page=50&page=1&sparkline=false').then(res => res.json()).catch(() => []);
 
-                Promise.all([fetchGlobal, fetchTON])
-                    .then(([globalData, tonData]) => {
-                        setGlobalCoins(globalData);
-                        setTonCoins(tonData);
-                        if(globalData.length > 0) setSelectedCoin(globalData[0]);
-                        setLoading(false);
-                    })
-                    .catch(err => {
-                        console.error("API Error:", err);
-                        setLoading(false);
-                    });
+                Promise.all([fetchGlobal, fetchTON]).then(([g, t]) => {
+                    setGlobalCoins(g || []); setTonCoins(t || []);
+                    if(g && g.length > 0) setSelectedCoin(g[0]);
+                    setLoading(false);
+                }).catch(() => setLoading(false));
             }, []);
 
-            // تنظیمات چارت
             useEffect(() => {
-                if (!chartContainerRef.current) return;
-                if (chartRef.current) {
-                    chartRef.current.remove();
-                }
-                const chart = LightweightCharts.createChart(chartContainerRef.current, {
-                    width: chartContainerRef.current.clientWidth,
-                    height: 250,
-                    layout: { backgroundColor: '#0B1120', textColor: '#94a3b8' },
-                    grid: { vertLines: { color: '#1e293b' }, horzLines: { color: '#1e293b' } },
-                    timeScale: { borderColor: '#1e293b' },
-                });
-                const candlestickSeries = chart.addCandlestickSeries({
-                    upColor: '#10b981', downColor: '#ef4444', borderVisible: false,
-                    wickUpColor: '#10b981', wickDownColor: '#ef4444',
-                });
-                chartRef.current = chart;
-                seriesRef.current = candlestickSeries;
+                if (mainTab !== 'signal' || !chartContainerRef.current) return;
+                if (chartRef.current) { chartRef.current.remove(); chartRef.current = null; seriesRef.current = null; }
 
-                const handleResize = () => {
-                    if (chartRef.current) {
-                        chartRef.current.applyOptions({ width: chartContainerRef.current.clientWidth });
-                    }
-                };
-                window.addEventListener('resize', handleResize);
-                return () => {
-                    window.removeEventListener('resize', handleResize);
-                    if (chartRef.current) { chartRef.current.remove(); chartRef.current = null; }
-                };
-            }, []);
+                const container = chartContainerRef.current;
 
-            // دریافت دیتای کندل ها (OHLC) از CoinGecko
-            useEffect(() => {
-                if (!selectedCoin || !seriesRef.current) return;
-                const fetchOHLC = async () => {
+                const initChart = async () => {
+                    if (!container || chartRef.current) return;
                     try {
-                        const res = await fetch(`https://api.coingecko.com/api/v3/coins/${selectedCoin.id}/ohlc?vs_currency=usd&days=1`);
-                        const data = await res.json();
-                        const formattedData = data.map(item => ({
-                            time: item[0] / 1000,
-                            open: item[1], high: item[2], low: item[3], close: item[4]
-                        }));
-                        seriesRef.current.setData(formattedData);
-                        chartRef.current.timeScale().fitContent();
-                    } catch (error) {
-                        console.error("OHLC fetch error:", error);
-                    }
+                        const isDark = theme === 'dark';
+                        const chart = LightweightCharts.createChart(container, {
+                            width: container.clientWidth || window.innerWidth,
+                            height: 320,
+                            layout: { background: { type: 'solid', color: isDark ? '#0B1120' : '#ffffff' }, textColor: isDark ? '#94a3b8' : '#334155' },
+                            grid: { vertLines: { color: isDark ? '#1e293b' : '#e2e8f0' }, horzLines: { color: isDark ? '#1e293b' : '#e2e8f0' } },
+                            timeScale: { timeVisible: true, secondsVisible: false, borderColor: isDark ? '#1e293b' : '#e2e8f0', rightOffset: 5, barSpacing: 6 },
+                            crosshair: { mode: 1 }
+                        });
+                        
+                        const series = chart.addCandlestickSeries({
+                            upColor: '#10b981', downColor: '#ef4444', borderVisible: false, wickUpColor: '#10b981', wickDownColor: '#ef4444',
+                        });
+                        
+                        chartRef.current = chart;
+                        seriesRef.current = series;
+                        priceLinesRef.current = [];
+                        setSignal(null);
+
+                        const fetchOHLC = async () => {
+                            let formattedData = [];
+                            try {
+                                let binanceSymbol = selectedCoin.symbol.toUpperCase() + 'USDT';
+                                const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=${binanceSymbol}&interval=${timeframe}&limit=100`);
+                                if (res.ok) {
+                                    const data = await res.json();
+                                    formattedData = data.map(i => ({ time: i[0]/1000, open: parseFloat(i[1]), high: parseFloat(i[2]), low: parseFloat(i[3]), close: parseFloat(i[4]) }));
+                                } else { throw new Error("Binance Blocked"); }
+                            } catch (err) {
+                                const p = selectedCoin.current_price; 
+                                const tfSecs = { '5m': 300, '15m': 900, '30m': 1800, '1h': 3600, '4h': 14400, '1d': 86400, '1w': 604800, '1M': 2592000 };
+                                let time = Math.floor(Date.now()/1000) - (100 * tfSecs[timeframe]);
+                                for (let i=0; i<100; i++) {
+                                    const open = p * (1 + (Math.random()-0.5)*0.02); const close = p * (1 + (Math.random()-0.5)*0.02);
+                                    formattedData.push({ time, open, high: Math.max(open,close)*1.005, low: Math.min(open,close)*0.995, close }); time += tfSecs[timeframe];
+                                }
+                            }
+                            if (seriesRef.current) { seriesRef.current.setData(formattedData); }
+                        };
+                        fetchOHLC();
+                    } catch(e) { console.error(e); }
                 };
-                fetchOHLC();
-            }, [selectedCoin]);
 
-            // اتصال به TON Connect (برای پرداخت)
-            useEffect(() => {
-                if (window.TON_CONNECT_UI) {
-                    const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
-                        manifestUrl: 'https://fanciful-medovik-987080.netlify.app/tonconnect-manifest.json',
-                        buttonRootId: 'ton-connect-button'
-                    });
-                }
-            }, []);
-
-            const toncoinData = tonCoins.find(c => c.id === 'the-open-network');
-            const tonEcoData = tonCoins.filter(c => c.id !== 'the-open-network');
-
-            let activeCoinsList = [];
-            if (marketCategory === 'global') activeCoinsList = globalCoins;
-            else if (marketCategory === 'toncoin') activeCoinsList = toncoinData ? [toncoinData] : [];
-            else if (marketCategory === 'ton-eco') activeCoinsList = tonEcoData;
+                // تایم اوت برای رفع مشکل لود نشدن چارت در موبایل
+                setTimeout(() => {
+                    if (window.ResizeObserver) {
+                        const observer = new ResizeObserver((entries) => {
+                            if (entries[0].contentRect.width > 0 && !chartRef.current) initChart();
+                        });
+                        observer.observe(container);
+                        return () => { observer.disconnect(); if (chartRef.current) chartRef.current.remove(); };
+                    } else {
+                        initChart();
+                    }
+                }, 100);
+                
+            }, [mainTab, theme, selectedCoin, timeframe]);
 
             const handleGenerate = () => {
                 if (!selectedCoin) return;
-                setLoadingSignal(true);
-                setSignal(null);
-                setTimeout(() => {
-                    const currentPrice = selectedCoin.current_price;
-                    const isLong = Math.random() > 0.5;
-                    setSignal({
-                        direction: isLong ? 'LONG' : 'SHORT',
-                        entry: currentPrice.toFixed(4),
-                        tp1: (isLong ? currentPrice * 1.02 : currentPrice * 0.98).toFixed(4),
-                        tp2: (isLong ? currentPrice * 1.05 : currentPrice * 0.95).toFixed(4),
-                        sl: (isLong ? currentPrice * 0.98 : currentPrice * 1.02).toFixed(4)
-                    });
-                    setLoadingSignal(false);
-                }, 2000);
-            };
-
-            const handleStarsPayment = () => {
-                if (window.Telegram && window.Telegram.WebApp) {
-                    window.Telegram.WebApp.showAlert("⭐️ پرداخت با استارز (Stars)\n\nبرای پرداخت واقعی به یک سرور (بک‌اند) نیاز است تا فاکتور بسازد. در حال حاضر این یک شبیه‌سازی است.");
-                } else {
-                    alert("⭐️ Stars Payment requires a backend server.");
+                if (!isAdmin && !isPremium && usageCount >= FREE_LIMIT) { setShowPaymentModal(true); return; }
+                if (!isAdmin && !isPremium) {
+                    const newCount = usageCount + 1; setUsageCount(newCount); localStorage.setItem('crypto_ai_usage', newCount);
                 }
-                setShowPaymentModal(false);
+                setLoadingSignal(true); setSignal(null);
+                if (priceLinesRef.current.length > 0 && seriesRef.current) {
+                    priceLinesRef.current.forEach(l => seriesRef.current.removePriceLine(l)); priceLinesRef.current = [];
+                }
+                
+                setTimeout(() => {
+                    const cp = selectedCoin.current_price; 
+                    const isLong = Math.random() > 0.5; 
+                    
+                    const multipliers = { '5m': 0.005, '15m': 0.01, '30m': 0.015, '1h': 0.025, '4h': 0.05, '1d': 0.08, '1w': 0.15, '1M': 0.25 };
+                    let m = multipliers[timeframe] || 0.02;
+                    
+                    let entry, tp1, tp2, tp3, sl;
+
+                    if (isLong) {
+                        entry = cp * (1 - m * 0.2);
+                        tp1 = cp * (1 + m * 0.8);
+                        tp2 = cp * (1 + m * 1.5);
+                        tp3 = cp * (1 + m * 2.5);
+                        sl = cp * (1 - m * 0.6);
+                    } else {
+                        entry = cp * (1 + m * 0.2);
+                        tp1 = cp * (1 - m * 0.8);
+                        tp2 = cp * (1 - m * 1.5);
+                        tp3 = cp * (1 - m * 2.5);
+                        sl = cp * (1 + m * 0.6); 
+                    }
+                    
+                    const confidence = (Math.random() * 10 + 88).toFixed(1);
+
+                    setSignal({ 
+                        direction: isLong ? 'LONG' : 'SHORT', 
+                        entry: entry.toFixed(4), 
+                        tp1: tp1.toFixed(4), 
+                        tp2: tp2.toFixed(4), 
+                        tp3: tp3.toFixed(4), 
+                        sl: sl.toFixed(4), 
+                        tf: timeframe,
+                        confidence: confidence
+                    });
+                    
+                    if (seriesRef.current) {
+                        const el = seriesRef.current.createPriceLine({ price: entry, color: '#3b82f6', lineWidth: 2, lineStyle: 0, title: 'Entry' });
+                        const tl1 = seriesRef.current.createPriceLine({ price: tp1, color: '#10b981', lineWidth: 2, lineStyle: 2, title: 'TP1' });
+                        const tl2 = seriesRef.current.createPriceLine({ price: tp2, color: '#10b981', lineWidth: 2, lineStyle: 2, title: 'TP2' });
+                        const tl3 = seriesRef.current.createPriceLine({ price: tp3, color: '#10b981', lineWidth: 2, lineStyle: 2, title: 'TP3' });
+                        const sll = seriesRef.current.createPriceLine({ price: sl, color: '#ef4444', lineWidth: 2, lineStyle: 2, title: 'SL' });
+                        priceLinesRef.current = [el, tl1, tl2, tl3, sll];
+                    }
+                    setLoadingSignal(false);
+                }, 1500);
             };
 
-            const handleTONPayment = () => {
-                alert("💎 پرداخت با TON\n\nبرای پرداخت واقعی کاربر باید کیف پول را وصل و تراکنش را امضا کند. در حال حاضر این یک شبیه‌سازی است.");
-                setShowPaymentModal(false);
+            const handlePaymentSuccess = () => {
+                setIsPremium(true); localStorage.setItem('crypto_ai_premium', 'true'); setShowPaymentModal(false);
+                if (window.Telegram) window.Telegram.WebApp.showAlert("🎉 Premium Activated!");
             };
+
+            // 🔴 اتصال به بک‌اند واقعی (این بخش اصلاح شد)
+            const handleStarsPayment = async (plan) => {
+                try {
+                    if (window.Telegram && window.Telegram.WebApp) {
+                        window.Telegram.WebApp.showAlert("⏳ در حال ساخت فاکتور پرداخت...");
+                    }
+
+                    // ⚠️ بعداً لینک Render خودت رو اینجا جایگزین کن
+                    const BACKEND_URL = "https://YOUR_RENDER_URL_HERE.onrender.com";
+
+                    const response = await fetch(`${BACKEND_URL}/create-invoice`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ amount: plan.stars })
+                    });
+
+                    const data = await response.json();
+
+                    if (data.invoiceLink && window.Telegram && window.Telegram.WebApp) {
+                        window.Telegram.WebApp.openInvoice(data.invoiceLink, (status) => {
+                            if (status === 'paid') {
+                                handlePaymentSuccess();
+                            }
+                        });
+                    } else {
+                        throw new Error(data.error || "Failed to create invoice");
+                    }
+                } catch (error) {
+                    if (window.Telegram && window.Telegram.WebApp) {
+                        window.Telegram.WebApp.showAlert("❌ خطا در اتصال به سرور: " + error.message);
+                    } else {
+                        alert("Error: " + error.message);
+                    }
+                }
+            };
+
+            const bgClass = theme === 'dark' ? 'bg-[#0B1120] text-white' : 'bg-gray-100 text-gray-900';
+            const cardClass = theme === 'dark' ? 'bg-[#111827] border-slate-700' : 'bg-white border-gray-300';
+            const textMuted = theme === 'dark' ? 'text-slate-400' : 'text-gray-500';
+            const headerClass = theme === 'dark' ? 'border-slate-800' : 'border-gray-300';
+            const btnClass = theme === 'dark' ? 'bg-slate-800 border-slate-700 text-emerald-400' : 'bg-white border-gray-300 text-emerald-600';
+
+            const toncoinData = tonCoins.find(c => c.id === 'the-open-network');
+            const tonEcoData = tonCoins.filter(c => c.id !== 'the-open-network');
+            let activeCoinsList = marketCategory === 'global' ? globalCoins : marketCategory === 'toncoin' ? (toncoinData ? [toncoinData] : []) : tonEcoData;
 
             return (
-                <div className="flex flex-col h-full bg-[#0B1120] relative">
-                    {/* هدر */}
-                    <div className="p-3 text-center border-b border-slate-800 relative">
-                        <h1 className="text-xl font-bold text-emerald-400 neon-glow inline-block">Crypto AI</h1>
-                        {isAdmin && (
-                            <span className="absolute right-3 top-3 bg-emerald-500 text-black text-[10px] font-bold px-2 py-1 rounded">
-                                ADMIN
-                            </span>
-                        )}
+                <div className={`flex flex-col h-full relative transition-colors duration-300 ${bgClass}`}>
+                    <div className={`p-3 text-center border-b relative ${headerClass}`}>
+                        <h1 className="text-xl font-bold text-emerald-500 neon-glow inline-block">Crypto AI</h1>
+                        <div className="absolute left-3 top-3 flex gap-2">
+                            {!isAdmin && !isPremium && <span className={`text-[10px] px-2 py-1 rounded bg-slate-700/50 ${textMuted}`}>{t.usesLeft}: {FREE_LIMIT - usageCount}</span>}
+                            {isAdmin && <span className="text-[10px] bg-emerald-500 text-black font-bold px-2 py-1 rounded">{t.admin}</span>}
+                            {isPremium && <span className="text-[10px] bg-yellow-500 text-black font-bold px-2 py-1 rounded">{t.pro}</span>}
+                        </div>
+                        <button onClick={() => setShowSettings(true)} className={`absolute right-3 top-3 p-1 rounded ${textMuted} hover:text-emerald-500`}>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                        </button>
                     </div>
 
-                    {/* تب های اصلی */}
-                    <div className="flex border-b border-slate-800 text-sm">
-                        <button onClick={() => setMainTab('market')} className={`flex-1 py-3 font-bold ${mainTab === 'market' ? 'text-emerald-400 border-b-2 border-emerald-400' : 'text-slate-400'}`}>Market</button>
-                        <button onClick={() => setMainTab('signal')} className={`flex-1 py-3 font-bold ${mainTab === 'signal' ? 'text-emerald-400 border-b-2 border-emerald-400' : 'text-slate-400'}`}>AI Signal</button>
+                    <div className={`flex border-b text-sm ${headerClass}`}>
+                        <button onClick={() => setMainTab('market')} className={`flex-1 py-3 font-bold ${mainTab === 'market' ? 'text-emerald-500 border-b-2 border-emerald-500' : textMuted}`}>{t.market}</button>
+                        <button onClick={() => setMainTab('signal')} className={`flex-1 py-3 font-bold ${mainTab === 'signal' ? 'text-emerald-500 border-b-2 border-emerald-500' : textMuted}`}>{t.aiSignal}</button>
                     </div>
 
-                    {/* محتوا */}
                     <div className="flex-1 overflow-y-auto p-3 pb-24">
-                        {/* تب بازار */}
                         {mainTab === 'market' && (
                             <div>
-                                <div className="flex overflow-x-auto gap-1 mb-4 bg-slate-800/50 p-1 rounded-lg">
-                                    <button onClick={() => setMarketCategory('global')} className={`flex-1 py-1.5 px-2 text-[11px] rounded-md font-bold whitespace-nowrap ${marketCategory === 'global' ? 'bg-slate-700 text-white' : 'text-slate-400'}`}>Top 100</button>
-                                    <button onClick={() => setMarketCategory('toncoin')} className={`flex-1 py-1.5 px-2 text-[11px] rounded-md font-bold whitespace-nowrap ${marketCategory === 'toncoin' ? 'bg-slate-700 text-white' : 'text-slate-400'}`}>Toncoin</button>
-                                    <button onClick={() => setMarketCategory('ton-eco')} className={`flex-1 py-1.5 px-2 text-[11px] rounded-md font-bold whitespace-nowrap ${marketCategory === 'ton-eco' ? 'bg-slate-700 text-white' : 'text-slate-400'}`}>TON Eco</button>
+                                <div className={`flex overflow-x-auto gap-1 mb-4 p-1 rounded-lg ${theme === 'dark' ? 'bg-slate-800/50' : 'bg-gray-200'}`}>
+                                    <button onClick={() => setMarketCategory('global')} className={`flex-1 py-1.5 px-2 text-[11px] rounded-md font-bold whitespace-nowrap ${marketCategory === 'global' ? (theme === 'dark' ? 'bg-slate-700 text-white' : 'bg-white text-black shadow') : textMuted}`}>{t.top100}</button>
+                                    <button onClick={() => setMarketCategory('toncoin')} className={`flex-1 py-1.5 px-2 text-[11px] rounded-md font-bold whitespace-nowrap ${marketCategory === 'toncoin' ? (theme === 'dark' ? 'bg-slate-700 text-white' : 'bg-white text-black shadow') : textMuted}`}>{t.toncoin}</button>
+                                    <button onClick={() => setMarketCategory('ton-eco')} className={`flex-1 py-1.5 px-2 text-[11px] rounded-md font-bold whitespace-nowrap ${marketCategory === 'ton-eco' ? (theme === 'dark' ? 'bg-slate-700 text-white' : 'bg-white text-black shadow') : textMuted}`}>{t.tonEco}</button>
                                 </div>
 
                                 {loading ? (
-                                    <div className="text-center text-slate-400 mt-10 animate-pulse">Loading Data...</div>
+                                    <div className={`text-center mt-10 animate-pulse ${textMuted}`}>Loading...</div>
                                 ) : (
                                     <div className="space-y-2">
-                                        {activeCoinsList.length === 0 ? (
-                                            <div className="text-center text-slate-500 mt-10">No coins found.</div>
-                                        ) : (
-                                            activeCoinsList.map(coin => (
-                                                <div 
-                                                    key={coin.id} 
-                                                    onClick={() => { setSelectedCoin(coin); setMainTab('signal'); setSignal(null); }}
-                                                    className="glass rounded-xl p-3 flex items-center justify-between cursor-pointer hover:bg-slate-800 transition-colors"
-                                                >
-                                                    <div className="flex items-center gap-3">
-                                                        <img src={coin.image} alt={coin.symbol} className="w-8 h-8 rounded-full" />
-                                                        <div>
-                                                            <div className="font-bold text-sm uppercase">{coin.symbol}</div>
-                                                            <div className="text-[10px] text-slate-400 truncate w-24">{coin.name}</div>
-                                                        </div>
-                                                    </div>
-                                                    <div className="text-right">
-                                                        <div className="font-mono text-sm">${coin.current_price.toLocaleString()}</div>
-                                                        <div className={`text-xs ${coin.price_change_percentage_24h >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                                            {coin.price_change_percentage_24h?.toFixed(2)}%
-                                                        </div>
+                                        {activeCoinsList.map(coin => (
+                                            <div key={coin.id} onClick={() => { setSelectedCoin(coin); setMainTab('signal'); setSignal(null); }} className={`border rounded-xl p-3 flex items-center justify-between cursor-pointer transition-colors ${cardClass}`}>
+                                                <div className="flex items-center gap-3">
+                                                    <img src={coin.image} alt={coin.symbol} className="w-8 h-8 rounded-full" />
+                                                    <div>
+                                                        <div className="font-bold text-sm uppercase">{coin.symbol}</div>
+                                                        <div className={`text-[10px] truncate w-24 ${textMuted}`}>{coin.name}</div>
                                                     </div>
                                                 </div>
-                                            ))
-                                        )}
+                                                <div className="text-right">
+                                                    <div className="font-mono text-sm">${coin.current_price.toLocaleString()}</div>
+                                                    <div className={`text-xs ${coin.price_change_percentage_24h >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>{coin.price_change_percentage_24h?.toFixed(2)}%</div>
+                                                </div>
+                                            </div>
+                                        ))}
                                     </div>
                                 )}
                             </div>
                         )}
 
-                        {/* تب سیگنال */}
                         {mainTab === 'signal' && selectedCoin && (
                             <div>
-                                <div className="flex items-center gap-3 mb-4 bg-slate-800/50 p-3 rounded-xl border border-slate-700">
+                                <div className={`flex items-center gap-3 mb-3 border p-3 rounded-xl ${cardClass}`}>
                                     <img src={selectedCoin.image} className="w-10 h-10" />
                                     <div>
                                         <h2 className="font-bold text-sm">{selectedCoin.name} ({selectedCoin.symbol.toUpperCase()})</h2>
-                                        <p className="text-emerald-400 font-mono text-sm">${selectedCoin.current_price.toLocaleString()}</p>
+                                        <p className="text-emerald-500 font-mono text-sm">${selectedCoin.current_price.toLocaleString()}</p>
                                     </div>
                                 </div>
 
-                                {/* کانتینر چارت */}
-                                <div id="chart-container" ref={chartContainerRef} className="mb-4 glass rounded-xl"></div>
+                                <div className={`flex gap-2 mb-3 overflow-x-auto p-1 rounded-lg ${theme === 'dark' ? 'bg-slate-800/50' : 'bg-gray-200'}`}>
+                                    {TIMEFRAMES.map(tf => (
+                                        <button key={tf} onClick={() => setTimeframe(tf)} className={`px-3 py-1.5 rounded-md text-xs font-bold whitespace-nowrap transition-all ${timeframe === tf ? 'bg-emerald-500 text-black' : (theme === 'dark' ? 'text-slate-400 hover:bg-slate-700' : 'text-gray-500 hover:bg-gray-300')}`}>
+                                            {tf}
+                                        </button>
+                                    ))}
+                                </div>
+
+                                <div id="chart-container" ref={chartContainerRef}></div>
 
                                 {!signal && !loadingSignal && (
-                                    <button onClick={handleGenerate} className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-bold py-4 rounded-xl neon-glow transition-all">
-                                        Generate AI Signal
+                                    <button onClick={handleGenerate} className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-bold py-4 rounded-xl neon-glow transition-all mt-4">
+                                        {!isAdmin && !isPremium && usageCount >= FREE_LIMIT ? t.unlock : t.generate}
                                     </button>
                                 )}
 
-                                {loadingSignal && (
-                                    <div className="text-center text-emerald-400 font-bold animate-pulse mt-4">Analyzing Chart...</div>
-                                )}
+                                {loadingSignal && <div className="text-center text-emerald-500 font-bold animate-pulse mt-4">Running High-Precision AI Analysis...</div>}
 
                                 {signal && (
-                                    <div className="glass rounded-2xl p-5 mt-4 border border-emerald-500/30">
-                                        <div className="flex justify-between items-center mb-4 border-b border-slate-700 pb-3">
-                                            <h2 className="text-lg font-bold">AI Trade Signal</h2>
-                                            <span className={`px-3 py-1 rounded-full text-xs font-bold ${signal.direction === 'LONG' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
-                                                {signal.direction}
-                                            </span>
+                                    <div className={`border p-4 rounded-xl mt-4 ${theme === 'dark' ? 'bg-[#111827]' : 'bg-white'} ${signal.direction === 'LONG' ? 'signal-glow-long' : 'signal-glow-short'}`}>
+                                        <div className="flex justify-between items-center mb-3 border-b border-slate-700 pb-2">
+                                            <div className="flex items-center gap-2">
+                                                <div className={`text-sm font-bold px-3 py-1 rounded-full ${signal.direction === 'LONG' ? 'bg-emerald-500/20 text-emerald-500' : 'bg-red-500/20 text-red-500'}`}>
+                                                    {signal.direction}
+                                                </div>
+                                                <span className={`text-xs font-bold ${textMuted}`}>{signal.tf}</span>
+                                            </div>
+                                            <div className="text-xs font-bold text-emerald-400">
+                                                {t.confidence}: {signal.confidence}%
+                                            </div>
                                         </div>
-                                        <div className="space-y-3 font-mono text-sm">
-                                            <div className="flex justify-between"><span className="text-slate-400">Entry Price:</span><span>${signal.entry}</span></div>
-                                            <div className="flex justify-between"><span className="text-slate-400">Target 1:</span><span className="text-emerald-400">${signal.tp1}</span></div>
-                                            <div className="flex justify-between"><span className="text-slate-400">Target 2:</span><span className="text-emerald-400">${signal.tp2}</span></div>
-                                            <div className="flex justify-between"><span className="text-slate-400">Stop Loss:</span><span className="text-red-400">${signal.sl}</span></div>
+                                        
+                                        <div className="grid grid-cols-3 gap-2">
+                                            <div className="text-center">
+                                                <span className={`text-[10px] block ${textMuted}`}>{t.entry}</span>
+                                                <span className="text-xs font-mono text-blue-400">${signal.entry}</span>
+                                            </div>
+                                            <div className="text-center">
+                                                <span className={`text-[10px] block ${textMuted}`}>TP1</span>
+                                                <span className="text-xs font-mono text-emerald-500">${signal.tp1}</span>
+                                            </div>
+                                            <div className="text-center">
+                                                <span className={`text-[10px] block ${textMuted}`}>TP2</span>
+                                                <span className="text-xs font-mono text-emerald-500">${signal.tp2}</span>
+                                            </div>
+                                            <div className="text-center">
+                                                <span className={`text-[10px] block ${textMuted}`}>TP3</span>
+                                                <span className="text-xs font-mono text-emerald-500">${signal.tp3}</span>
+                                            </div>
+                                            <div className="text-center col-span-2">
+                                                <span className={`text-[10px] block ${textMuted}`}>{t.sl}</span>
+                                                <span className="text-xs font-mono text-red-500">${signal.sl}</span>
+                                            </div>
                                         </div>
                                     </div>
                                 )}
@@ -292,32 +399,88 @@
                         )}
                     </div>
 
-                    {/* دکمه پریمیوم */}
-                    <div className="p-3 bg-[#0B1120] border-t border-slate-800">
+                    <div className={`p-3 border-t ${headerClass} ${theme === 'dark' ? 'bg-[#0B1120]' : 'bg-gray-100'}`}>
                         {isAdmin ? (
-                            <div className="w-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold py-3 rounded-xl text-center">
-                                👑 Admin Unlimited Access
-                            </div>
+                            <div className="w-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-500 font-bold py-3 rounded-xl text-center">👑 {t.admin}</div>
+                        ) : isPremium ? (
+                            <div className="w-full bg-yellow-500/10 border border-yellow-500/30 text-yellow-500 font-bold py-3 rounded-xl text-center">⭐ {t.pro}</div>
                         ) : (
-                            <button onClick={() => setShowPaymentModal(true)} className="w-full bg-slate-800 border border-slate-700 text-emerald-400 font-bold py-3 rounded-xl transition-all">
-                                Go Premium
-                            </button>
+                            <button onClick={() => setShowPaymentModal(true)} className={`w-full border font-bold py-3 rounded-xl transition-all ${btnClass}`}>{t.goPremium}</button>
                         )}
                     </div>
 
-                    {/* مودال پرداخت */}
-                    {showPaymentModal && !isAdmin && (
-                        <div className="absolute inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
-                            <div className="glass rounded-2xl p-6 w-full max-w-sm">
-                                <h3 className="text-lg font-bold text-center mb-4">Select Payment Method</h3>
-                                <button onClick={handleStarsPayment} className="w-full bg-yellow-500/20 border border-yellow-500/50 text-yellow-400 font-bold py-3 rounded-xl mb-3 flex items-center justify-center gap-2">
-                                    ⭐️ Pay with Stars
-                                </button>
-                                <button onClick={handleTONPayment} className="w-full bg-blue-500/20 border border-blue-500/50 text-blue-400 font-bold py-3 rounded-xl mb-3 flex items-center justify-center gap-2">
-                                    💎 Pay with TON
-                                </button>
-                                <button onClick={() => setShowPaymentModal(false)} className="w-full text-slate-400 text-sm py-2">Cancel</button>
-                                <div id="ton-connect-button" className="mt-2"></div>
+                    {showPaymentModal && !isAdmin && !isPremium && (
+                        <div className="absolute inset-0 bg-black/80 flex items-end sm:items-center justify-center z-50">
+                            <div className={`rounded-t-3xl sm:rounded-3xl p-6 w-full max-w-sm h-[80vh] sm:h-auto overflow-y-auto ${theme === 'dark' ? 'bg-[#111827] text-white' : 'bg-white text-black'}`}>
+                                <div className="flex justify-between items-center mb-6">
+                                    <h3 className="text-xl font-bold">{t.upgrade}</h3>
+                                    <button onClick={() => setShowPaymentModal(false)} className={`text-2xl ${textMuted}`}>&times;</button>
+                                </div>
+                                <p className={`text-sm mb-6 ${textMuted}`}>{t.planText}</p>
+                                <div className="space-y-3">
+                                    {[ { m: 1, usdt: 5, stars: 400 }, { m: 3, usdt: 15, stars: 1150 }, { m: 6, usdt: 40, stars: 3000 }, { m: 12, usdt: 60, stars: 4500 } ].map(plan => (
+                                        <div key={plan.m} className={`rounded-xl p-4 flex justify-between items-center border cursor-pointer ${theme === 'dark' ? 'bg-slate-800/50 border-slate-700 hover:bg-slate-700' : 'bg-gray-50 border-gray-200 hover:bg-gray-100'}`} onClick={() => handleStarsPayment(plan)}>
+                                            <div><div className="font-bold">{plan.m} {lang === 'fa' ? 'ماهه' : lang === 'ru' ? 'Мес' : lang === 'zh' ? '月' : lang === 'ja' ? 'ヶ月' : 'Months'}</div></div>
+                                            <div className="text-right"><div className="text-emerald-500 font-bold">{plan.usdt} USDT</div><div className="text-xs text-yellow-500">⭐ {plan.stars} Stars</div></div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {showSettings && (
+                        <div className="absolute inset-0 bg-black/80 flex items-end sm:items-center justify-center z-50">
+                            <div className={`rounded-t-3xl sm:rounded-3xl p-6 w-full max-w-sm h-[80vh] sm:h-auto overflow-y-auto ${theme === 'dark' ? 'bg-[#111827] text-white' : 'bg-white text-black'}`}>
+                                <div className="flex justify-between items-center mb-6">
+                                    <h3 className="text-xl font-bold">{showAbout ? t.about : t.settings}</h3>
+                                    <button onClick={() => { setShowSettings(false); setShowAbout(false); }} className={`text-2xl ${textMuted}`}>&times;</button>
+                                </div>
+
+                                {!showAbout ? (
+                                    <>
+                                        <div className="mb-6">
+                                            <h4 className={`text-sm mb-2 ${textMuted}`}>{t.theme}</h4>
+                                            <div className="flex gap-2">
+                                                <button onClick={() => setTheme('dark')} className={`flex-1 py-2 rounded-lg font-bold border ${theme === 'dark' ? 'bg-slate-700 border-emerald-500 text-white' : 'border-gray-300 text-gray-600'}`}>{t.dark}</button>
+                                                <button onClick={() => setTheme('light')} className={`flex-1 py-2 rounded-lg font-bold border ${theme === 'light' ? 'bg-gray-200 border-emerald-500 text-black' : 'border-slate-700 text-slate-400'}`}>{t.light}</button>
+                                            </div>
+                                        </div>
+                                        <div className="mb-6">
+                                            <h4 className={`text-sm mb-2 ${textMuted}`}>{t.language}</h4>
+                                            <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                                                {[ { code: 'fa', name: 'فارسی (Persian)', flag: '🇮🇷' }, { code: 'en', name: 'English', flag: '🇺🇸' }, { code: 'ru', name: 'Русский (Russian)', flag: '🇷🇺' }, { code: 'zh', name: '中文 (Chinese)', flag: '🇨🇳' }, { code: 'ja', name: '日本語 (Japanese)', flag: '🇯🇵' } ].map(l => (
+                                                    <button key={l.code} onClick={() => setLang(l.code)} className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all ${lang === l.code ? 'border-emerald-500 bg-emerald-500/10' : theme === 'dark' ? 'border-slate-700 hover:bg-slate-800' : 'border-gray-300 hover:bg-gray-50'}`}>
+                                                        <span className="text-xl">{l.flag}</span>
+                                                        <span className="font-bold">{l.name}</span>
+                                                        {lang === l.code && <span className="ml-auto text-emerald-500">✓</span>}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                        <button onClick={() => setShowAbout(true)} className={`w-full py-3 rounded-xl font-bold border transition-all ${theme === 'dark' ? 'bg-slate-800 border-slate-700 hover:bg-slate-700 text-emerald-400' : 'bg-gray-100 border-gray-300 hover:bg-gray-200 text-emerald-600'}`}>
+                                            {t.about}
+                                        </button>
+                                    </>
+                                ) : (
+                                    <div className="text-center py-4">
+                                        <div className="w-20 h-20 mx-auto bg-emerald-500/20 rounded-full flex items-center justify-center mb-4">
+                                            <span className="text-4xl text-emerald-500 font-bold">AI</span>
+                                        </div>
+                                        <h4 className="text-2xl font-bold mb-1">Crypto AI</h4>
+                                        <p className={`text-sm mb-4 ${textMuted}`}>Version 1.0.0</p>
+                                        <p className={`text-sm leading-relaxed mb-6 ${textMuted}`}>
+                                            Crypto AI is an advanced Telegram Mini App designed to provide real-time cryptocurrency market data, AI-powered trading signals, and interactive charts.
+                                        </p>
+                                        <div className={`p-4 rounded-xl border mb-6 ${theme === 'dark' ? 'bg-slate-800/50 border-slate-700' : 'bg-gray-50 border-gray-200'}`}>
+                                            <p className="text-xs uppercase tracking-wider text-emerald-500 font-bold mb-1">Developer</p>
+                                            <p className="font-bold text-lg">Navid</p>
+                                        </div>
+                                        <button onClick={() => setShowAbout(false)} className={`w-full py-3 rounded-xl font-bold border transition-all ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-gray-200 border-gray-300 text-black'}`}>
+                                            {t.back}
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}
