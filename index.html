@@ -26,7 +26,6 @@
 
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
-
         const ADMIN_TELEGRAM_ID = 7400384016; 
         const FREE_LIMIT = 5;
 
@@ -73,7 +72,6 @@
             const seriesRef = useRef(null);
             const priceLinesRef = useRef([]);
 
-            // رفع باگ راست‌چین شدن برای زبان فارسی
             useEffect(() => {
                 document.documentElement.dir = lang === 'fa' ? 'rtl' : 'ltr';
                 document.documentElement.lang = lang;
@@ -152,7 +150,6 @@
                     } catch(e) { console.error(e); }
                 };
 
-                // تایم اوت برای رفع مشکل لود نشدن چارت در موبایل
                 setTimeout(() => {
                     if (window.ResizeObserver) {
                         const observer = new ResizeObserver((entries) => {
@@ -231,7 +228,6 @@
                 if (window.Telegram) window.Telegram.WebApp.showAlert("🎉 Premium Activated!");
             };
 
-            // 🔴 اتصال به بک‌اند واقعی (این بخش اصلاح شد)
             const handleStarsPayment = async (plan) => {
                 try {
                     if (window.Telegram && window.Telegram.WebApp) {
