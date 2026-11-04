@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Crypto AI Mini App</title>
+    <!-- Telegram WebApp SDK -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & Babel -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Lightweight Charts (TradingView) -->
+    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+    <!-- TON Connect UI -->
+    <script src="https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js"></script>
+
+    <style>
+        body { background-color: #0B1120; color: white; font-family: -apple-system, sans-serif; overflow: hidden; }
+        .glass { background: rgba(17, 24, 39, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .neon-glow { box-shadow: 0 0 15px rgba(16, 185, 129, 0.5); }
+        ::-webkit-scrollbar { display: none; }
+        #chart-container { width: 100%; height: 250px; border-radius: 12px; overflow: hidden; }
+        #ton-connect-button { margin-top: 10px; }
+    </style>
+</head>
+<body class="h-screen flex flex-col">
+    <div id="root" class="flex-1 flex flex-col h-full overflow-hidden"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // 🔴 آیدی تلگرام شما برای حالت ادمین
+        const ADMIN_TELEGRAM_ID = 7400384016; 
+
+        function App() {
+            const [isAdmin, setIsAdmin] = useState(false);
+            const [mainTab, setMainTab] = useState('market');
+            const [marketCategory, setMarketCategory] = useState('global');
+            
+            const [globalCoins, setGlobalCoins] = useState([]);
+            const [tonCoins, setTonCoins] = useState([]);
+            const [loading, setLoading] = useState(true);
+            
+            const [selectedCoin, setSelectedCoin] = useState(null);
+            const [loadingSignal, setLoadingSignal] = useState(false);
+            const [signal, setSignal] = useState(null);
+            const [showPaymentModal, setShowPaymentModal] = useState(false);
+
+            const chartContainerRef = useRef(null);
+            const chartRef = useRef(null);
+            const seriesRef = useRef(null);
+
+            useEffect(() => {
+                // 🟢 چک کردن آیدی ادمین
+                if (window.Telegram && window.Telegram.WebApp) {
+                    window.Telegram.WebApp.ready();
+                    window.Telegram.WebApp.expand();
+                    const currentUserId = window.Telegram.WebApp.initDataUnsafe?.user?.id;
+                    if (currentUserId === ADMIN_TELEGRAM_ID) {
+                        setIsAdmin(true);
+                    }
+                }
+
+                // دریافت دیتای بازار
+                const fetchGlobal = fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=100&page=1&sparkline=false')
+                    .then(res => res.json());
+                const fetchTON = fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&category=ton-ecosystem&order=market_cap_desc&per_page=50&page=1&sparkline=false')
+                    .then(res => res.json());
+
+                Promise.all([fetchGlobal, fetchTON])
+                    .then(([globalData, tonData]) => {
+                        setGlobalCoins(globalData);
+                        setTonCoins(tonData);
+                        if(globalData.length > 0) setSelectedCoin(globalData[0]);
+                        setLoading(false);
+                    })
+                    .catch(err => {
+                        console.error("API Error:", err);
+                        setLoading(false);
+                    });
+            }, []);
+
+            // تنظیمات چارت
+            useEffect(() => {
+                if (!chartContainerRef.current) return;
+                if (chartRef.current) {
+                    chartRef.current.remove();
+                }
+                const chart = LightweightCharts.createChart(chartContainerRef.current, {
+                    width: chartContainerRef.current.clientWidth,
+                    height: 250,
+                    layout: { backgroundColor: '#0B1120', textColor: '#94a3b8' },
+                    grid: { vertLines: { color: '#1e293b' }, horzLines: { color: '#1e293b' } },
+                    timeScale: { borderColor: '#1e293b' },
+                });
+                const candlestickSeries = chart.addCandlestickSeries({
+                    upColor: '#10b981', downColor: '#ef4444', borderVisible: false,
+                    wickUpColor: '#10b981', wickDownColor: '#ef4444',
+                });
+                chartRef.current = chart;
+                seriesRef.current = candlestickSeries;
+
+                const handleResize = () => {
+                    if (chartRef.current) {
+                        chartRef.current.applyOptions({ width: chartContainerRef.current.clientWidth });
+                    }
+                };
+                window.addEventListener('resize', handleResize);
+                return () => {
+                    window.removeEventListener('resize', handleResize);
+                    if (chartRef.current) { chartRef.current.remove(); chartRef.current = null; }
+                };
+            }, []);
+
+            // دریافت دیتای کندل ها (OHLC) از CoinGecko
+            useEffect(() => {
+                if (!selectedCoin || !seriesRef.current) return;
+                const fetchOHLC = async () => {
+                    try {
+                        const res = await fetch(`https://api.coingecko.com/api/v3/coins/${selectedCoin.id}/ohlc?vs_currency=usd&days=1`);
+                        const data = await res.json();
+                        const formattedData = data.map(item => ({
+                            time: item[0] / 1000,
+                            open: item[1], high: item[2], low: item[3], close: item[4]
+                        }));
+                        seriesRef.current.setData(formattedData);
+                        chartRef.current.timeScale().fitContent();
+                    } catch (error) {
+                        console.error("OHLC fetch error:", error);
+                    }
+                };
+                fetchOHLC();
+            }, [selectedCoin]);
+
+            // اتصال به TON Connect (برای پرداخت)
+            useEffect(() => {
+                if (window.TON_CONNECT_UI) {
+                    const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
+                        manifestUrl: 'https://fanciful-medovik-987080.netlify.app/tonconnect-manifest.json',
+                        buttonRootId: 'ton-connect-button'
+                    });
+                }
+            }, []);
+
+            const toncoinData = tonCoins.find(c => c.id === 'the-open-network');
+            const tonEcoData = tonCoins.filter(c => c.id !== 'the-open-network');
+
+            let activeCoinsList = [];
+            if (marketCategory === 'global') activeCoinsList = globalCoins;
+            else if (marketCategory === 'toncoin') activeCoinsList = toncoinData ? [toncoinData] : [];
+            else if (marketCategory === 'ton-eco') activeCoinsList = tonEcoData;
+
+            const handleGenerate = () => {
+                if (!selectedCoin) return;
+                setLoadingSignal(true);
+                setSignal(null);
+                setTimeout(() => {
+                    const currentPrice = selectedCoin.current_price;
+                    const isLong = Math.random() > 0.5;
+                    setSignal({
+                        direction: isLong ? 'LONG' : 'SHORT',
+                        entry: currentPrice.toFixed(4),
+                        tp1: (isLong ? currentPrice * 1.02 : currentPrice * 0.98).toFixed(4),
+                        tp2: (isLong ? currentPrice * 1.05 : currentPrice * 0.95).toFixed(4),
+                        sl: (isLong ? currentPrice * 0.98 : currentPrice * 1.02).toFixed(4)
+                    });
+                    setLoadingSignal(false);
+                }, 2000);
+            };
+
+            const handleStarsPayment = () => {
+                if (window.Telegram && window.Telegram.WebApp) {
+                    window.Telegram.WebApp.showAlert("⭐️ پرداخت با استارز (Stars)\n\nبرای پرداخت واقعی به یک سرور (بک‌اند) نیاز است تا فاکتور بسازد. در حال حاضر این یک شبیه‌سازی است.");
+                } else {
+                    alert("⭐️ Stars Payment requires a backend server.");
+                }
+                setShowPaymentModal(false);
+            };
+
+            const handleTONPayment = () => {
+                alert("💎 پرداخت با TON\n\nبرای پرداخت واقعی کاربر باید کیف پول را وصل و تراکنش را امضا کند. در حال حاضر این یک شبیه‌سازی است.");
+                setShowPaymentModal(false);
+            };
+
+            return (
+                <div className="flex flex-col h-full bg-[#0B1120] relative">
+                    {/* هدر */}
+                    <div className="p-3 text-center border-b border-slate-800 relative">
+                        <h1 className="text-xl font-bold text-emerald-400 neon-glow inline-block">Crypto AI</h1>
+                        {isAdmin && (
+                            <span className="absolute right-3 top-3 bg-emerald-500 text-black text-[10px] font-bold px-2 py-1 rounded">
+                                ADMIN
+                            </span>
+                        )}
+                    </div>
+
+                    {/* تب های اصلی */}
+                    <div className="flex border-b border-slate-800 text-sm">
+                        <button onClick={() => setMainTab('market')} className={`flex-1 py-3 font-bold ${mainTab === 'market' ? 'text-emerald-400 border-b-2 border-emerald-400' : 'text-slate-400'}`}>Market</button>
+                        <button onClick={() => setMainTab('signal')} className={`flex-1 py-3 font-bold ${mainTab === 'signal' ? 'text-emerald-400 border-b-2 border-emerald-400' : 'text-slate-400'}`}>AI Signal</button>
+                    </div>
+
+                    {/* محتوا */}
+                    <div className="flex-1 overflow-y-auto p-3 pb-24">
+                        {/* تب بازار */}
+                        {mainTab === 'market' && (
+                            <div>
+                                <div className="flex overflow-x-auto gap-1 mb-4 bg-slate-800/50 p-1 rounded-lg">
+                                    <button onClick={() => setMarketCategory('global')} className={`flex-1 py-1.5 px-2 text-[11px] rounded-md font-bold whitespace-nowrap ${marketCategory === 'global' ? 'bg-slate-700 text-white' : 'text-slate-400'}`}>Top 100</button>
+                                    <button onClick={() => setMarketCategory('toncoin')} className={`flex-1 py-1.5 px-2 text-[11px] rounded-md font-bold whitespace-nowrap ${marketCategory === 'toncoin' ? 'bg-slate-700 text-white' : 'text-slate-400'}`}>Toncoin</button>
+                                    <button onClick={() => setMarketCategory('ton-eco')} className={`flex-1 py-1.5 px-2 text-[11px] rounded-md font-bold whitespace-nowrap ${marketCategory === 'ton-eco' ? 'bg-slate-700 text-white' : 'text-slate-400'}`}>TON Eco</button>
+                                </div>
+
+                                {loading ? (
+                                    <div className="text-center text-slate-400 mt-10 animate-pulse">Loading Data...</div>
+                                ) : (
+                                    <div className="space-y-2">
+                                        {activeCoinsList.length === 0 ? (
+                                            <div className="text-center text-slate-500 mt-10">No coins found.</div>
+                                        ) : (
+                                            activeCoinsList.map(coin => (
+                                                <div 
+                                                    key={coin.id} 
+                                                    onClick={() => { setSelectedCoin(coin); setMainTab('signal'); setSignal(null); }}
+                                                    className="glass rounded-xl p-3 flex items-center justify-between cursor-pointer hover:bg-slate-800 transition-colors"
+                                                >
+                                                    <div className="flex items-center gap-3">
+                                                        <img src={coin.image} alt={coin.symbol} className="w-8 h-8 rounded-full" />
+                                                        <div>
+                                                            <div className="font-bold text-sm uppercase">{coin.symbol}</div>
+                                                            <div className="text-[10px] text-slate-400 truncate w-24">{coin.name}</div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <div className="font-mono text-sm">${coin.current_price.toLocaleString()}</div>
+                                                        <div className={`text-xs ${coin.price_change_percentage_24h >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                            {coin.price_change_percentage_24h?.toFixed(2)}%
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* تب سیگنال */}
+                        {mainTab === 'signal' && selectedCoin && (
+                            <div>
+                                <div className="flex items-center gap-3 mb-4 bg-slate-800/50 p-3 rounded-xl border border-slate-700">
+                                    <img src={selectedCoin.image} className="w-10 h-10" />
+                                    <div>
+                                        <h2 className="font-bold text-sm">{selectedCoin.name} ({selectedCoin.symbol.toUpperCase()})</h2>
+                                        <p className="text-emerald-400 font-mono text-sm">${selectedCoin.current_price.toLocaleString()}</p>
+                                    </div>
+                                </div>
+
+                                {/* کانتینر چارت */}
+                                <div id="chart-container" ref={chartContainerRef} className="mb-4 glass rounded-xl"></div>
+
+                                {!signal && !loadingSignal && (
+                                    <button onClick={handleGenerate} className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-bold py-4 rounded-xl neon-glow transition-all">
+                                        Generate AI Signal
+                                    </button>
+                                )}
+
+                                {loadingSignal && (
+                                    <div className="text-center text-emerald-400 font-bold animate-pulse mt-4">Analyzing Chart...</div>
+                                )}
+
+                                {signal && (
+                                    <div className="glass rounded-2xl p-5 mt-4 border border-emerald-500/30">
+                                        <div className="flex justify-between items-center mb-4 border-b border-slate-700 pb-3">
+                                            <h2 className="text-lg font-bold">AI Trade Signal</h2>
+                                            <span className={`px-3 py-1 rounded-full text-xs font-bold ${signal.direction === 'LONG' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
+                                                {signal.direction}
+                                            </span>
+                                        </div>
+                                        <div className="space-y-3 font-mono text-sm">
+                                            <div className="flex justify-between"><span className="text-slate-400">Entry Price:</span><span>${signal.entry}</span></div>
+                                            <div className="flex justify-between"><span className="text-slate-400">Target 1:</span><span className="text-emerald-400">${signal.tp1}</span></div>
+                                            <div className="flex justify-between"><span className="text-slate-400">Target 2:</span><span className="text-emerald-400">${signal.tp2}</span></div>
+                                            <div className="flex justify-between"><span className="text-slate-400">Stop Loss:</span><span className="text-red-400">${signal.sl}</span></div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* دکمه پریمیوم */}
+                    <div className="p-3 bg-[#0B1120] border-t border-slate-800">
+                        {isAdmin ? (
+                            <div className="w-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold py-3 rounded-xl text-center">
+                                👑 Admin Unlimited Access
+                            </div>
+                        ) : (
+                            <button onClick={() => setShowPaymentModal(true)} className="w-full bg-slate-800 border border-slate-700 text-emerald-400 font-bold py-3 rounded-xl transition-all">
+                                Go Premium
+                            </button>
+                        )}
+                    </div>
+
+                    {/* مودال پرداخت */}
+                    {showPaymentModal && !isAdmin && (
+                        <div className="absolute inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+                            <div className="glass rounded-2xl p-6 w-full max-w-sm">
+                                <h3 className="text-lg font-bold text-center mb-4">Select Payment Method</h3>
+                                <button onClick={handleStarsPayment} className="w-full bg-yellow-500/20 border border-yellow-500/50 text-yellow-400 font-bold py-3 rounded-xl mb-3 flex items-center justify-center gap-2">
+                                    ⭐️ Pay with Stars
+                                </button>
+                                <button onClick={handleTONPayment} className="w-full bg-blue-500/20 border border-blue-500/50 text-blue-400 font-bold py-3 rounded-xl mb-3 flex items-center justify-center gap-2">
+                                    💎 Pay with TON
+                                </button>
+                                <button onClick={() => setShowPaymentModal(false)} className="w-full text-slate-400 text-sm py-2">Cancel</button>
+                                <div id="ton-connect-button" className="mt-2"></div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
