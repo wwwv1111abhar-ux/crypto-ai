@@ -96,7 +96,6 @@
                     Promise.all([fetchGlobal, fetchTON]).then(([g, t]) => {
                         setGlobalCoins(g || []); setTonCoins(t || []);
                         if(g && g.length > 0) {
-                            // آپدیت کوین انتخاب شده فعلی اگر قیمتش تغییر کرده
                             setSelectedCoin(prev => {
                                 if(!prev) return g[0];
                                 const updated = [...g, ...(t||[])].find(c => c.id === prev.id);
@@ -107,8 +106,8 @@
                     }).catch(() => setLoading(false));
                 };
 
-                fetchMarketData(); // اجرای اولیه
-                const interval = setInterval(fetchMarketData, 30000); // هر 30 ثانیه
+                fetchMarketData(); 
+                const interval = setInterval(fetchMarketData, 30000); 
                 return () => clearInterval(interval);
             }, []);
 
@@ -127,7 +126,6 @@
                             height: 320,
                             layout: { background: { type: 'solid', color: isDark ? '#0B1120' : '#ffffff' }, textColor: isDark ? '#94a3b8' : '#334155' },
                             grid: { vertLines: { color: isDark ? '#1e293b' : '#e2e8f0' }, horzLines: { color: isDark ? '#1e293b' : '#e2e8f0' } },
-                            // فاصله کندل‌ها از 6 به 8 افزایش یافت تا خواناتر شود
                             timeScale: { timeVisible: true, secondsVisible: false, borderColor: isDark ? '#1e293b' : '#e2e8f0', rightOffset: 5, barSpacing: 8 },
                             crosshair: { mode: 1 }
                         });
@@ -144,7 +142,6 @@
                         const fetchOHLC = async () => {
                             let formattedData = [];
                             try {
-                                // تلاش برای گرفتن دیتای واقعی از OKX
                                 let okxSymbol = selectedCoin.symbol.toUpperCase() + '-USDT';
                                 if (selectedCoin.symbol.toUpperCase() === 'USDT') okxSymbol = 'USDT-USDC';
                                 const okxBar = { '5m': '5m', '15m': '15m', '30m': '30m', '1h': '1H', '4h': '4H', '1d': '1D', '1w': '1W', '1M': '1M' }[timeframe] || '15m';
@@ -163,18 +160,16 @@
                                     } else { throw new Error("OKX Data Error"); }
                                 } else { throw new Error("OKX Blocked"); }
                             } catch (err) {
-                                // اگر ارز در OKX نبود (مثل اکثر ارزهای TON Eco)، یک چارت تمیز و منطقی می‌سازیم
                                 const p = selectedCoin.current_price; 
                                 const tfSecs = { '5m': 300, '15m': 900, '30m': 1800, '1h': 3600, '4h': 14400, '1d': 86400, '1w': 604800, '1M': 2592000 };
                                 let time = Math.floor(Date.now()/1000) - (100 * tfSecs[timeframe]);
                                 
-                                // ساخت یک روند طبیعی به جای نویز تصادفی
-                                let trend = (Math.random() - 0.5) * 0.04; // روند 4 درصدی
-                                let currentPrice = p * (1 - trend); // شروع از قیمت پایه
+                                let trend = (Math.random() - 0.5) * 0.04; 
+                                let currentPrice = p * (1 - trend); 
 
                                 for (let i=0; i<100; i++) {
                                     const open = currentPrice;
-                                    const noise = (Math.random() - 0.5) * 0.005; // نویز کم
+                                    const noise = (Math.random() - 0.5) * 0.005; 
                                     const change = open * (noise + (trend / 100)); 
                                     const close = open + change;
                                     
@@ -279,7 +274,8 @@
                         window.Telegram.WebApp.showAlert("⏳ در حال ساخت فاکتور پرداخت...");
                     }
 
-                    const BOT_TOKEN = "9079967416:AAHN_ZH21A_bDVKxEs-ByDbxknnAokgr-34"; 
+                    // 🔴 توکن ربات جدید شما
+                    const BOT_TOKEN = "9159405091:AAHNXDx9RSC91khR9LYdNvPfH1JWMqcL1dI"; 
                     const url = `https://api.telegram.org/bot${BOT_TOKEN}/createInvoiceLink`;
 
                     const response = await fetch(url, {
