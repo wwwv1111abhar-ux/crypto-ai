@@ -234,29 +234,39 @@
                         window.Telegram.WebApp.showAlert("⏳ در حال ساخت فاکتور پرداخت...");
                     }
 
-                    // ⚠️ بعداً لینک Render خودت رو اینجا جایگزین کن
-                    const BACKEND_URL = "https://YOUR_RENDER_URL_HERE.onrender.com";
+                    // اتصال مستقیم به تلگرام (بدون سرور)
+                    const BOT_TOKEN = "9079967416:AAHN_ZH21A_bDVKxEs-ByDbxknnAokgr-34"; 
+                    const url = `https://api.telegram.org/bot${BOT_TOKEN}/createInvoiceLink`;
 
-                    const response = await fetch(`${BACKEND_URL}/create-invoice`, {
+                    const response = await fetch(url, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ amount: plan.stars })
+                        body: JSON.stringify({
+                            title: "Premium Subscription",
+                            description: "Unlimited AI Signals",
+                            payload: "custom_payload_" + Date.now(),
+                            provider_token: "", 
+                            currency: "XTR", 
+                            prices: [{ label: "Premium", amount: parseInt(plan.stars) }]
+                        })
                     });
 
                     const data = await response.json();
 
-                    if (data.invoiceLink && window.Telegram && window.Telegram.WebApp) {
-                        window.Telegram.WebApp.openInvoice(data.invoiceLink, (status) => {
-                            if (status === 'paid') {
-                                handlePaymentSuccess();
-                            }
-                        });
+                    if (data.ok && data.result) {
+                        if (window.Telegram && window.Telegram.WebApp) {
+                            window.Telegram.WebApp.openInvoice(data.result, (status) => {
+                                if (status === 'paid') {
+                                    handlePaymentSuccess();
+                                }
+                            });
+                        }
                     } else {
-                        throw new Error(data.error || "Failed to create invoice");
+                        throw new Error(data.description || "Failed to create invoice");
                     }
                 } catch (error) {
                     if (window.Telegram && window.Telegram.WebApp) {
-                        window.Telegram.WebApp.showAlert("❌ خطا در اتصال به سرور: " + error.message);
+                        window.Telegram.WebApp.showAlert("❌ خطا در ساخت فاکتور: " + error.message);
                     } else {
                         alert("Error: " + error.message);
                     }
